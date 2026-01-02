@@ -1,0 +1,113 @@
+.pdf-page.theme-light {
+  background: #FDFCF9;
+}
+
+.theme-light h1 {
+  color: #C41E3A;
+}
+
+.theme-light h2 {
+  color: #1a1a1a;
+  border-bottom-color: rgba(196, 30, 58, 0.2);
+}
+
+.theme-light h3 {
+  color: #C41E3A;
+}
+
+.theme-light h4 {
+  color: #1a1a1a;
+}
+
+.theme-light h5,
+.theme-light h6 {
+  color: #444;
+}
+
+.theme-light p {
+  color: #2a2a2a;
+}
+
+.theme-light strong {
+  color: #111;
+}
+
+.theme-light em {
+  color: #C41E3A;
+}
+
+.theme-light a {
+  color: #C41E3A;
+}
+
+.theme-light blockquote {
+  background: #f5f3ef;
+  border-left-color: #C41E3A;
+}
+
+.theme-light blockquote p {
+  color: #1a1a1a;
+}
+
+.theme-light li {
+  color: #2a2a2a;
+}
+
+.theme-light li::marker {
+  color: #C41E3A;
+}
+
+.theme-light code {
+  background: #f0ede8;
+  color: #C41E3A;
+}
+
+.theme-light pre {
+  background: #f5f3ef;
+  border-color: #e5e2dc;
+}
+
+.theme-light pre code {
+  color: #1a1a1a;
+}
+
+.theme-light th {
+  background: #f0ede8;
+  color: #1a1a1a;
+  border-color: #e0ddd7;
+}
+
+.theme-light td {
+  color: #2a2a2a;
+  border-color: #e5e2dc;
+}
+
+.theme-light tr:nth-child(even) td {
+  background: #faf9f6;
+}
+
+.theme-light img {
+  border-color: #e0ddd7;
+}
+
+.theme-light .chart-container {
+  background: #f8f6f2;
+  border-color: #e5e2dc;
+}
+
+.theme-light .chart-svg {
+  color: #2a2a2a;
+}
+
+.theme-light .chart-label,
+.theme-light .chart-marker-label {
+  fill: #555;
+}
+
+.theme-light .chart-title {
+  color: #555;
+}
+
+.theme-light .page-number {
+  color: #888;
+}
