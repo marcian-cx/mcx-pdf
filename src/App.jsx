@@ -52,19 +52,35 @@ Control images with modifiers after the URL:
 
 ---
 
+## Page Breaks
+
+Force a new page with:
+
+\`\`\`
+:::pagebreak:::
+\`\`\`
+
+or simply:
+
+\`\`\`
+:::page:::
+\`\`\`
+
+:::pagebreak:::
+
 ## Centering
 
 :::center
 # This Heading is Centered
-:::
+;;;
 
 :::center
 Regular text can be centered too.
-:::
+;;;
 
 :::center
 ![Centered Image](https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80 "w=300")
-:::
+;;;
 
 ---
 
@@ -192,6 +208,8 @@ function parseImageModifiers(titleStr) {
   return mods
 }
 
+const API_URL = 'http://localhost:3001/api'
+
 function App() {
   const [markdown, setMarkdown] = useState(defaultMarkdown)
   const [images, setImages] = useState({})
@@ -199,8 +217,13 @@ function App() {
   const [activeTheme, setActiveTheme] = useState('dark')
   const [customCSS, setCustomCSS] = useState({})
   const [pages, setPages] = useState([])
+  const [currentFile, setCurrentFile] = useState('untitled.md')
+  const [filesList, setFilesList] = useState([])
+  const [showFileMenu, setShowFileMenu] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef(null)
   const cssInputRef = useRef(null)
+  const mdInputRef = useRef(null)
   const measureRef = useRef(null)
   const pagesContainerRef = useRef(null)
 
@@ -210,12 +233,91 @@ function App() {
       return '\n\n' + '&nbsp;\n\n'.repeat(extraLines)
     })
     
-    processed = processed.replace(/:::center\n([\s\S]*?)\n:::/g, (match, content) => {
+    processed = processed.replace(/:::center\n([\s\S]*?)\n;;;/g, (match, content) => {
       return `<div class="centered-content">\n\n${content}\n\n</div>`
     })
     
     return processed
   }, [markdown])
+
+  useEffect(() => {
+    fetchFilesList()
+  }, [])
+
+  const fetchFilesList = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/documents`)
+      const data = await response.json()
+      setFilesList(data.files)
+    } catch (error) {
+      console.error('Failed to fetch files:', error)
+    }
+  }, [])
+
+  const handleSaveDocument = useCallback(async () => {
+    try {
+      setIsSaving(true)
+      await fetch(`${API_URL}/documents/${currentFile}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: markdown, images })
+      })
+      await fetchFilesList()
+      setIsSaving(false)
+    } catch (error) {
+      console.error('Failed to save:', error)
+      setIsSaving(false)
+    }
+  }, [currentFile, markdown, images, fetchFilesList])
+
+  const handleLoadDocument = useCallback(async (filename) => {
+    try {
+      const response = await fetch(`${API_URL}/documents/${filename}`)
+      const data = await response.json()
+      setMarkdown(data.content)
+      setImages(data.images || {})
+      setCurrentFile(filename)
+      setShowFileMenu(false)
+    } catch (error) {
+      console.error('Failed to load:', error)
+    }
+  }, [])
+
+  const handleNewDocument = useCallback(() => {
+    const filename = prompt('Enter filename (without .md extension):')
+    if (filename) {
+      const mdFilename = filename.endsWith('.md') ? filename : `${filename}.md`
+      setCurrentFile(mdFilename)
+      setMarkdown('')
+      setImages({})
+    }
+  }, [])
+
+  const handleDeleteDocument = useCallback(async (filename, e) => {
+    e.stopPropagation()
+    if (confirm(`Delete ${filename}?`)) {
+      try {
+        await fetch(`${API_URL}/documents/${filename}`, { method: 'DELETE' })
+        await fetchFilesList()
+        if (currentFile === filename) {
+          setCurrentFile('untitled.md')
+          setMarkdown('')
+          setImages({})
+        }
+      } catch (error) {
+        console.error('Failed to delete:', error)
+      }
+    }
+  }, [currentFile, fetchFilesList])
+
+  useEffect(() => {
+    const autoSave = setInterval(() => {
+      if (markdown && currentFile !== 'untitled.md') {
+        handleSaveDocument()
+      }
+    }, 30000)
+    return () => clearInterval(autoSave)
+  }, [markdown, currentFile, handleSaveDocument])
 
   useEffect(() => {
     const paginateContent = async () => {
@@ -258,6 +360,15 @@ function App() {
       children.forEach((child) => {
         const rect = child.getBoundingClientRect()
         const height = rect.height
+        
+        if (child.classList.contains('page-break-marker')) {
+          if (currentPage.length > 0) {
+            pagesData.push({ elements: [...currentPage], isBackground: false })
+            currentPage = []
+            currentHeight = 0
+          }
+          return
+        }
         
         if (height === 0 || height < 1) {
           currentPage.push(child.outerHTML)
@@ -346,7 +457,7 @@ function App() {
       reader.onload = (event) => {
         const id = `img-${Date.now()}`
         setImages(prev => ({ ...prev, [id]: event.target.result }))
-        setMarkdown(prev => prev + `\n\n:::background\n${id}\n:::\n\n`)
+        setMarkdown(prev => prev + `\n\n:::background\n${id}\n;;;\n\n`)
       }
       reader.readAsDataURL(file)
     }
@@ -369,31 +480,55 @@ function App() {
   }, [])
 
   const handleExportPDF = useCallback(async () => {
-    const html2pdf = (await import('html2pdf.js')).default
-    const container = pagesContainerRef.current
-    if (!container) return
+    try {
+      const { jsPDF } = await import('jspdf')
+      const html2canvas = (await import('html2canvas')).default
+      const pagesContainer = pagesContainerRef.current
+      if (!pagesContainer || pages.length === 0) return
 
-    const clone = container.cloneNode(true)
-    clone.querySelectorAll('.page-number').forEach(el => el.remove())
-    
-    const wrapper = document.createElement('div')
-    wrapper.style.cssText = 'position:absolute;left:-9999px'
-    wrapper.appendChild(clone)
-    document.body.appendChild(wrapper)
+      const bgColor = activeTheme === 'light' ? '#FDFCF9' : '#111111'
+      const pdfFilename = currentFile.replace('.md', '.pdf')
+      
+      const pageElements = pagesContainer.querySelectorAll('.pdf-page')
+      if (pageElements.length === 0) return
 
-    const bgColor = activeTheme === 'light' ? '#FDFCF9' : '#111111'
-    const opt = {
-      margin: 0,
-      filename: 'mcx-document.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: bgColor, width: PAGE_WIDTH_PX, windowWidth: PAGE_WIDTH_PX },
-      jsPDF: { unit: 'px', format: [PAGE_WIDTH_PX, PAGE_HEIGHT_PX], orientation: 'portrait', hotfixes: ['px_scaling'] },
-      pagebreak: { mode: ['css'], before: '.pdf-page' }
+      const pdf = new jsPDF({
+        unit: 'px',
+        format: [PAGE_WIDTH_PX, PAGE_HEIGHT_PX],
+        orientation: 'portrait',
+        hotfixes: ['px_scaling']
+      })
+
+      for (let i = 0; i < pageElements.length; i++) {
+        const pageEl = pageElements[i]
+        
+        const canvas = await html2canvas(pageEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: bgColor,
+          width: PAGE_WIDTH_PX,
+          height: PAGE_HEIGHT_PX,
+          windowWidth: PAGE_WIDTH_PX,
+          logging: false
+        })
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.98)
+        
+        if (i > 0) {
+          pdf.addPage([PAGE_WIDTH_PX, PAGE_HEIGHT_PX], 'portrait')
+        }
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_WIDTH_PX, PAGE_HEIGHT_PX)
+      }
+
+      pdf.save(pdfFilename)
+    } catch (error) {
+      console.error('PDF Export Error:', error)
+      alert('Failed to export PDF. Check console for details.')
     }
+  }, [activeTheme, currentFile, pages])
 
-    await html2pdf().set(opt).from(clone).save()
-    document.body.removeChild(wrapper)
-  }, [activeTheme])
 
   const renderImage = useCallback(({ src, alt, title }) => {
     const actualSrc = images[src] || src
@@ -430,7 +565,11 @@ function App() {
       return <div className="spacer">&nbsp;</div>
     }
     
-    const bgMatch = text.match(/^:::background\s*([\s\S]*?):::$/)
+    if (text === ':::pagebreak:::' || text === ':::page:::') {
+      return <div className="page-break-marker" data-pagebreak="true"></div>
+    }
+    
+    const bgMatch = text.match(/^:::background\s*([\s\S]*?);;;$/)
     if (bgMatch) {
       const imgSrc = images[bgMatch[1].trim()] || bgMatch[1].trim()
       return <div className="background-page" style={{ backgroundImage: `url(${imgSrc})` }} />
@@ -473,6 +612,31 @@ function App() {
       <header className="app-header">
         <div className="app-logo"><span>MCX</span> PDF Styler</div>
         <div className="header-actions">
+          <div className="file-controls">
+            <button className="btn btn-ghost btn-sm" onClick={handleNewDocument}>New</button>
+            <div className="file-dropdown">
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowFileMenu(!showFileMenu)}>
+                {currentFile} ▾
+              </button>
+              {showFileMenu && (
+                <div className="file-menu">
+                  {filesList.length === 0 ? (
+                    <div className="file-menu-empty">No saved documents</div>
+                  ) : (
+                    filesList.map(file => (
+                      <div key={file} className="file-menu-item" onClick={() => handleLoadDocument(file)}>
+                        <span>{file}</span>
+                        <button className="file-delete-btn" onClick={(e) => handleDeleteDocument(file, e)}>×</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={handleSaveDocument} disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
           <div className="theme-selector">
             <select value={activeTheme} onChange={(e) => setActiveTheme(e.target.value)} className="theme-select">
               {Object.values(themes).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -558,6 +722,7 @@ function App() {
         <div className="status-item"><span className="status-dot" /><span>Ready</span></div>
         <div className="status-item">{wordCount} words · {charCount} chars · {pageCount} pages</div>
       </div>
+
     </div>
   )
 }

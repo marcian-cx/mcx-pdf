@@ -64,6 +64,71 @@ body {
   gap: 0.5rem;
 }
 
+.file-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-right: 0.75rem;
+  padding-right: 0.75rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.file-dropdown {
+  position: relative;
+}
+
+.file-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  background: var(--brand-dark);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  min-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.file-menu-empty {
+  padding: 0.75rem;
+  color: var(--brand-gray);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.file-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-family: 'Roboto Condensed', sans-serif;
+  font-size: 0.8125rem;
+  color: var(--brand-white);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.file-menu-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.file-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--brand-crimson);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.file-delete-btn:hover {
+  opacity: 1;
+}
+
 .theme-selector {
   display: flex;
   align-items: center;
@@ -512,6 +577,13 @@ body {
   line-height: 1.5em;
 }
 
+.page-break-marker {
+  display: none;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
 .centered-block {
   display: flex;
   justify-content: center;
@@ -663,6 +735,10 @@ body {
 
 .measure-container {
   pointer-events: none;
+}
+
+.export-pages-container {
+  min-height: 100vh;
 }
 
 @media print {
