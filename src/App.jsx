@@ -218,8 +218,32 @@ function App() {
   }, [markdown])
 
   useEffect(() => {
-    const paginateContent = () => {
+    const paginateContent = async () => {
       if (!measureRef.current) return
+
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      const imgs = measureRef.current.querySelectorAll('img')
+      await Promise.all(
+        Array.from(imgs).map(img => {
+          if (img.complete && img.naturalWidth > 0) return Promise.resolve()
+          return new Promise((resolve) => {
+            const checkImage = () => {
+              if (img.complete && img.naturalWidth > 0) {
+                resolve()
+              }
+            }
+            img.onload = () => {
+              setTimeout(resolve, 50)
+            }
+            img.onerror = resolve
+            setTimeout(resolve, 3000)
+            checkImage()
+          })
+        })
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       const children = Array.from(measureRef.current.children)
       if (children.length === 0) {
@@ -276,7 +300,7 @@ function App() {
       setPages(pagesData)
     }
 
-    const timer = setTimeout(paginateContent, 200)
+    const timer = setTimeout(paginateContent, 50)
     return () => clearTimeout(timer)
   }, [processedMarkdown, activeTheme, images])
 
@@ -380,25 +404,29 @@ function App() {
     if (mods.x || mods.y) style.transform = `translate(${mods.x}px, ${mods.y}px)`
     
     if (mods.inline) {
-      return <img src={actualSrc} alt={alt || ''} className="inline-image" />
+      return <img src={actualSrc} alt={alt || ''} className="inline-image" crossOrigin="anonymous" />
     }
     
     if (mods.center) {
       return (
         <span className="centered-block">
-          <img src={actualSrc} alt={alt || ''} style={style} />
+          <img src={actualSrc} alt={alt || ''} style={style} crossOrigin="anonymous" />
         </span>
       )
     }
     
-    return <img src={actualSrc} alt={alt || ''} style={style} />
+    return <img src={actualSrc} alt={alt || ''} style={style} crossOrigin="anonymous" />
   }, [images])
 
   const renderParagraph = useCallback(({ children, node }) => {
     const childArray = Array.isArray(children) ? children : [children]
     const text = childArray.map(c => typeof c === 'string' ? c : '').join('').trim()
     
-    if (text === '' || text === '\u00A0' || text === '&nbsp;') {
+    const hasNonTextContent = childArray.some(c => 
+      typeof c === 'object' && c !== null
+    )
+    
+    if ((text === '' || text === '\u00A0' || text === '&nbsp;') && !hasNonTextContent) {
       return <div className="spacer">&nbsp;</div>
     }
     
@@ -497,7 +525,7 @@ function App() {
             <div 
               ref={measureRef} 
               className={`mcx-preview theme-${activeTheme} measure-container`}
-              style={{ position: 'absolute', visibility: 'hidden', width: CONTENT_WIDTH_PX, padding: 0, left: -9999 }}
+              style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: CONTENT_WIDTH_PX, padding: 0, left: -9999 }}
             >
               <ReactMarkdown 
                 remarkPlugins={[remarkGfm]}
