@@ -320,6 +320,167 @@ function App() {
   }, [markdown, currentFile, handleSaveDocument])
 
   useEffect(() => {
+    const getLineBreaks = (element, containerTop) => {
+      const lines = []
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false)
+      let node
+      while ((node = walker.nextNode())) {
+        if (!node.textContent.trim()) continue
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        const rects = range.getClientRects()
+        for (let i = 0; i < rects.length; i++) {
+          const rect = rects[i]
+          const relativeTop = rect.top - containerTop
+          const relativeBottom = rect.bottom - containerTop
+          if (lines.length === 0 || Math.abs(relativeTop - lines[lines.length - 1].top) > 2) {
+            lines.push({ top: relativeTop, bottom: relativeBottom, height: rect.height })
+          } else {
+            lines[lines.length - 1].bottom = Math.max(lines[lines.length - 1].bottom, relativeBottom)
+          }
+        }
+      }
+      const imgs = element.querySelectorAll('img')
+      imgs.forEach(img => {
+        const rect = img.getBoundingClientRect()
+        const relativeTop = rect.top - containerTop
+        const relativeBottom = rect.bottom - containerTop
+        lines.push({ top: relativeTop, bottom: relativeBottom, height: rect.height, isImage: true })
+      })
+      lines.sort((a, b) => a.top - b.top)
+      return lines
+    }
+
+    const splitElementAtHeight = (element, maxHeight, containerTop) => {
+      const tagName = element.tagName.toLowerCase()
+      
+      if (tagName === 'table') {
+        const rows = Array.from(element.querySelectorAll('tr'))
+        const thead = element.querySelector('thead')
+        const theadHtml = thead ? thead.outerHTML : ''
+        let firstPart = []
+        let secondPart = []
+        let cumHeight = 0
+        const tableTop = element.getBoundingClientRect().top
+        
+        rows.forEach((row, idx) => {
+          if (row.parentElement.tagName.toLowerCase() === 'thead') return
+          const rowRect = row.getBoundingClientRect()
+          const rowHeight = rowRect.height
+          if (cumHeight + rowHeight <= maxHeight) {
+            firstPart.push(row.outerHTML)
+            cumHeight += rowHeight
+          } else {
+            secondPart.push(row.outerHTML)
+          }
+        })
+        
+        if (firstPart.length === 0) return null
+        
+        const firstTable = `<table>${theadHtml}<tbody>${firstPart.join('')}</tbody></table>`
+        const secondTable = secondPart.length > 0 ? `<table>${theadHtml}<tbody>${secondPart.join('')}</tbody></table>` : null
+        return { first: firstTable, second: secondTable }
+      }
+      
+      if (tagName === 'ul' || tagName === 'ol') {
+        const items = Array.from(element.children)
+        let firstPart = []
+        let secondPart = []
+        let cumHeight = 0
+        
+        items.forEach(item => {
+          const itemRect = item.getBoundingClientRect()
+          const itemHeight = itemRect.height
+          if (cumHeight + itemHeight <= maxHeight) {
+            firstPart.push(item.outerHTML)
+            cumHeight += itemHeight
+          } else {
+            secondPart.push(item.outerHTML)
+          }
+        })
+        
+        if (firstPart.length === 0) return null
+        
+        const firstList = `<${tagName}>${firstPart.join('')}</${tagName}>`
+        const secondList = secondPart.length > 0 ? `<${tagName}>${secondPart.join('')}</${tagName}>` : null
+        return { first: firstList, second: secondList }
+      }
+      
+      const lines = getLineBreaks(element, containerTop)
+      if (lines.length <= 1) return null
+      
+      let splitIndex = 0
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].bottom <= maxHeight) {
+          splitIndex = i
+        } else {
+          break
+        }
+      }
+      
+      if (splitIndex === 0 && lines[0].bottom > maxHeight) return null
+      
+      const clone = element.cloneNode(true)
+      const elementRect = element.getBoundingClientRect()
+      const splitY = lines[splitIndex].bottom
+      const splitRatio = splitY / elementRect.height
+      
+      const originalHtml = element.innerHTML
+      const textContent = element.textContent || ''
+      const approxCharSplit = Math.floor(textContent.length * splitRatio)
+      
+      let charCount = 0
+      let splitNode = null
+      let splitOffset = 0
+      
+      const findSplitPoint = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const len = node.textContent.length
+          if (charCount + len >= approxCharSplit) {
+            splitNode = node
+            splitOffset = approxCharSplit - charCount
+            return true
+          }
+          charCount += len
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          for (let child of node.childNodes) {
+            if (findSplitPoint(child)) return true
+          }
+        }
+        return false
+      }
+      
+      findSplitPoint(element)
+      
+      if (!splitNode) return null
+      
+      const range1 = document.createRange()
+      range1.setStart(element, 0)
+      range1.setEnd(splitNode, Math.min(splitOffset, splitNode.textContent.length))
+      
+      const range2 = document.createRange()
+      range2.setStart(splitNode, Math.min(splitOffset, splitNode.textContent.length))
+      range2.setEndAfter(element.lastChild || element)
+      
+      const frag1 = range1.cloneContents()
+      const frag2 = range2.cloneContents()
+      
+      const temp1 = document.createElement(tagName)
+      temp1.className = element.className
+      temp1.appendChild(frag1)
+      
+      const temp2 = document.createElement(tagName)
+      temp2.className = element.className
+      temp2.appendChild(frag2)
+      
+      if (!temp1.textContent.trim()) return null
+      
+      return {
+        first: temp1.outerHTML,
+        second: temp2.textContent.trim() ? temp2.outerHTML : null
+      }
+    }
+
     const paginateContent = async () => {
       if (!measureRef.current) return
 
@@ -353,11 +514,14 @@ function App() {
         return
       }
 
+      const containerTop = measureRef.current.getBoundingClientRect().top
       const pagesData = []
       let currentPage = []
       let currentHeight = 0
+      let i = 0
 
-      children.forEach((child) => {
+      while (i < children.length) {
+        const child = children[i]
         const rect = child.getBoundingClientRect()
         const height = rect.height
         
@@ -367,12 +531,14 @@ function App() {
             currentPage = []
             currentHeight = 0
           }
-          return
+          i++
+          continue
         }
         
         if (height === 0 || height < 1) {
           currentPage.push(child.outerHTML)
-          return
+          i++
+          continue
         }
 
         const computedStyle = getComputedStyle(child)
@@ -387,18 +553,64 @@ function App() {
             currentHeight = 0
           }
           pagesData.push({ elements: [child.outerHTML], isBackground: true, bgUrl: child.style.backgroundImage })
-          return
+          i++
+          continue
         }
 
-        if (currentHeight + totalHeight > CONTENT_HEIGHT_PX && currentPage.length > 0) {
-          pagesData.push({ elements: [...currentPage], isBackground: false })
-          currentPage = []
-          currentHeight = 0
-        }
+        const remainingSpace = CONTENT_HEIGHT_PX - currentHeight
 
-        currentPage.push(child.outerHTML)
-        currentHeight += totalHeight
-      })
+        if (totalHeight <= remainingSpace) {
+          currentPage.push(child.outerHTML)
+          currentHeight += totalHeight
+          i++
+        } else if (remainingSpace > 50 && totalHeight > 50) {
+          const splitResult = splitElementAtHeight(child, remainingSpace - marginTop - marginBottom, child.getBoundingClientRect().top)
+          
+          if (splitResult) {
+            currentPage.push(splitResult.first)
+            pagesData.push({ elements: [...currentPage], isBackground: false })
+            currentPage = []
+            currentHeight = 0
+            
+            if (splitResult.second) {
+              const tempDiv = document.createElement('div')
+              tempDiv.innerHTML = splitResult.second
+              tempDiv.style.position = 'absolute'
+              tempDiv.style.visibility = 'hidden'
+              tempDiv.style.width = CONTENT_WIDTH_PX + 'px'
+              measureRef.current.appendChild(tempDiv)
+              const newHeight = tempDiv.firstChild?.getBoundingClientRect().height || 0
+              measureRef.current.removeChild(tempDiv)
+              
+              currentPage.push(splitResult.second)
+              currentHeight = newHeight + marginTop + marginBottom
+            }
+            i++
+          } else {
+            if (currentPage.length > 0) {
+              pagesData.push({ elements: [...currentPage], isBackground: false })
+              currentPage = []
+              currentHeight = 0
+            } else {
+              currentPage.push(child.outerHTML)
+              currentHeight += totalHeight
+              i++
+            }
+          }
+        } else {
+          if (currentPage.length > 0) {
+            pagesData.push({ elements: [...currentPage], isBackground: false })
+            currentPage = []
+            currentHeight = 0
+          } else {
+            currentPage.push(child.outerHTML)
+            pagesData.push({ elements: [...currentPage], isBackground: false })
+            currentPage = []
+            currentHeight = 0
+            i++
+          }
+        }
+      }
 
       if (currentPage.length > 0) {
         pagesData.push({ elements: [...currentPage], isBackground: false })
