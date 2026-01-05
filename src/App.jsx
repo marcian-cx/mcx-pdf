@@ -246,11 +246,16 @@ function App() {
   const [filesList, setFilesList] = useState([])
   const [showFileMenu, setShowFileMenu] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [editorCollapsed, setEditorCollapsed] = useState(false)
+  const [previewCollapsed, setPreviewCollapsed] = useState(false)
   const fileInputRef = useRef(null)
   const cssInputRef = useRef(null)
   const mdInputRef = useRef(null)
   const measureRef = useRef(null)
   const pagesContainerRef = useRef(null)
+  const textareaRef = useRef(null)
+  const previewContainerRef = useRef(null)
+  const syncingScroll = useRef(false)
 
   const processedMarkdown = useMemo(() => {
     let processed = markdown.replace(/\n{3,}/g, (match) => {
@@ -364,6 +369,37 @@ function App() {
     }, 30000)
     return () => clearInterval(autoSave)
   }, [markdown, currentFile, handleSaveDocument])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    const previewContainer = previewContainerRef.current
+
+    if (!textarea || !previewContainer) return
+
+    const handleEditorScroll = () => {
+      if (syncingScroll.current) return
+      syncingScroll.current = true
+      const scrollPercentage = textarea.scrollTop / (textarea.scrollHeight - textarea.clientHeight)
+      previewContainer.scrollTop = scrollPercentage * (previewContainer.scrollHeight - previewContainer.clientHeight)
+      setTimeout(() => { syncingScroll.current = false }, 10)
+    }
+
+    const handlePreviewScroll = () => {
+      if (syncingScroll.current) return
+      syncingScroll.current = true
+      const scrollPercentage = previewContainer.scrollTop / (previewContainer.scrollHeight - previewContainer.clientHeight)
+      textarea.scrollTop = scrollPercentage * (textarea.scrollHeight - textarea.clientHeight)
+      setTimeout(() => { syncingScroll.current = false }, 10)
+    }
+
+    textarea.addEventListener('scroll', handleEditorScroll)
+    previewContainer.addEventListener('scroll', handlePreviewScroll)
+
+    return () => {
+      textarea.removeEventListener('scroll', handleEditorScroll)
+      previewContainer.removeEventListener('scroll', handlePreviewScroll)
+    }
+  }, [])
 
   useEffect(() => {
     const getLineBreaks = (element, containerTop) => {
@@ -564,6 +600,8 @@ function App() {
       const pagesData = []
       let currentPage = []
       let currentHeight = 0
+      let currentPageBgUrl = null
+      let currentPageBgOpacity = '1'
       let i = 0
 
       while (i < children.length) {
@@ -572,10 +610,17 @@ function App() {
         const height = rect.height
         
         if (child.classList.contains('page-break-marker')) {
-          if (currentPage.length > 0) {
-            pagesData.push({ elements: [...currentPage], isBackground: false })
+          if (currentPage.length > 0 || currentPageBgUrl) {
+            pagesData.push({ 
+              elements: [...currentPage], 
+              isBackground: !!currentPageBgUrl, 
+              bgUrl: currentPageBgUrl, 
+              bgOpacity: currentPageBgOpacity 
+            })
             currentPage = []
             currentHeight = 0
+            currentPageBgUrl = null
+            currentPageBgOpacity = '1'
           }
           i++
           continue
@@ -594,15 +639,11 @@ function App() {
 
         const bgPageElement = child.querySelector('.background-page')
         if (child.classList.contains('background-page') || bgPageElement) {
-          if (currentPage.length > 0) {
-            pagesData.push({ elements: [...currentPage], isBackground: false })
-            currentPage = []
-            currentHeight = 0
-          }
           const targetElement = bgPageElement || child
           const bgUrl = targetElement.dataset.bgUrl || targetElement.style.backgroundImage.replace(/url\(['"]?([^'"]+)['"]?\)/, '$1')
           const bgOpacity = targetElement.dataset.bgOpacity || '1'
-          pagesData.push({ elements: [], isBackground: true, bgUrl: `url('${bgUrl}')`, bgOpacity })
+          currentPageBgUrl = `url('${bgUrl}')`
+          currentPageBgOpacity = bgOpacity
           i++
           continue
         }
@@ -618,9 +659,16 @@ function App() {
           
           if (splitResult) {
             currentPage.push(splitResult.first)
-            pagesData.push({ elements: [...currentPage], isBackground: false })
+            pagesData.push({ 
+              elements: [...currentPage], 
+              isBackground: !!currentPageBgUrl, 
+              bgUrl: currentPageBgUrl, 
+              bgOpacity: currentPageBgOpacity 
+            })
             currentPage = []
             currentHeight = 0
+            currentPageBgUrl = null
+            currentPageBgOpacity = '1'
             
             if (splitResult.second) {
               const tempDiv = document.createElement('div')
@@ -638,9 +686,16 @@ function App() {
             i++
           } else {
             if (currentPage.length > 0) {
-              pagesData.push({ elements: [...currentPage], isBackground: false })
+              pagesData.push({ 
+                elements: [...currentPage], 
+                isBackground: !!currentPageBgUrl, 
+                bgUrl: currentPageBgUrl, 
+                bgOpacity: currentPageBgOpacity 
+              })
               currentPage = []
               currentHeight = 0
+              currentPageBgUrl = null
+              currentPageBgOpacity = '1'
             } else {
               currentPage.push(child.outerHTML)
               currentHeight += totalHeight
@@ -649,21 +704,40 @@ function App() {
           }
         } else {
           if (currentPage.length > 0) {
-            pagesData.push({ elements: [...currentPage], isBackground: false })
+            pagesData.push({ 
+              elements: [...currentPage], 
+              isBackground: !!currentPageBgUrl, 
+              bgUrl: currentPageBgUrl, 
+              bgOpacity: currentPageBgOpacity 
+            })
             currentPage = []
             currentHeight = 0
+            currentPageBgUrl = null
+            currentPageBgOpacity = '1'
           } else {
             currentPage.push(child.outerHTML)
-            pagesData.push({ elements: [...currentPage], isBackground: false })
+            pagesData.push({ 
+              elements: [...currentPage], 
+              isBackground: !!currentPageBgUrl, 
+              bgUrl: currentPageBgUrl, 
+              bgOpacity: currentPageBgOpacity 
+            })
             currentPage = []
             currentHeight = 0
+            currentPageBgUrl = null
+            currentPageBgOpacity = '1'
             i++
           }
         }
       }
 
-      if (currentPage.length > 0) {
-        pagesData.push({ elements: [...currentPage], isBackground: false })
+      if (currentPage.length > 0 || currentPageBgUrl) {
+        pagesData.push({ 
+          elements: [...currentPage], 
+          isBackground: !!currentPageBgUrl, 
+          bgUrl: currentPageBgUrl, 
+          bgOpacity: currentPageBgOpacity 
+        })
       }
 
       if (pagesData.length === 0) {
@@ -684,7 +758,18 @@ function App() {
     reader.onload = (event) => {
       const id = `img-${Date.now()}`
       setImages(prev => ({ ...prev, [id]: event.target.result }))
-      setMarkdown(prev => prev + `\n\n![${file.name}](${id} "w=400")\n\n`)
+      const textarea = textareaRef.current
+      if (textarea) {
+        const cursorPos = textarea.selectionStart
+        const textToInsert = `\n\n![${file.name}](${id} "w=400")\n\n`
+        setMarkdown(prev => prev.slice(0, cursorPos) + textToInsert + prev.slice(cursorPos))
+        setTimeout(() => {
+          textarea.focus()
+          textarea.setSelectionRange(cursorPos + textToInsert.length, cursorPos + textToInsert.length)
+        }, 0)
+      } else {
+        setMarkdown(prev => prev + `\n\n![${file.name}](${id} "w=400")\n\n`)
+      }
     }
     reader.readAsDataURL(file)
     e.target.value = ''
@@ -701,7 +786,18 @@ function App() {
       reader.onload = (event) => {
         const id = `img-${Date.now()}`
         setImages(prev => ({ ...prev, [id]: event.target.result }))
-        setMarkdown(prev => prev + `![${file.name}](${id} "inline") `)
+        const textarea = textareaRef.current
+        if (textarea) {
+          const cursorPos = textarea.selectionStart
+          const textToInsert = `![${file.name}](${id} "inline") `
+          setMarkdown(prev => prev.slice(0, cursorPos) + textToInsert + prev.slice(cursorPos))
+          setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(cursorPos + textToInsert.length, cursorPos + textToInsert.length)
+          }, 0)
+        } else {
+          setMarkdown(prev => prev + `![${file.name}](${id} "inline") `)
+        }
       }
       reader.readAsDataURL(file)
     }
@@ -719,7 +815,18 @@ function App() {
       reader.onload = (event) => {
         const id = `img-${Date.now()}`
         setImages(prev => ({ ...prev, [id]: event.target.result }))
-        setMarkdown(prev => prev + `\n\n![](${id} "background")\n\n`)
+        const textarea = textareaRef.current
+        if (textarea) {
+          const cursorPos = textarea.selectionStart
+          const textToInsert = `\n\n:::pagebreak:::\n\n![](${id} "background")\n\n:::pagebreak:::\n\n`
+          setMarkdown(prev => prev.slice(0, cursorPos) + textToInsert + prev.slice(cursorPos))
+          setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(cursorPos + textToInsert.length, cursorPos + textToInsert.length)
+          }, 0)
+        } else {
+          setMarkdown(prev => prev + `\n\n:::pagebreak:::\n\n![](${id} "background")\n\n:::pagebreak:::\n\n`)
+        }
       }
       reader.readAsDataURL(file)
     }
@@ -910,26 +1017,32 @@ function App() {
       </header>
 
       <main className="main-content">
-        <div className="editor-panel">
+        <div className={`editor-panel ${editorCollapsed ? 'collapsed' : ''}`}>
           <div className="panel-header">
             <span className="panel-title">Markdown</span>
-            <div className="image-toolbar">
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden-input" />
-              <button className="image-btn" onClick={() => fileInputRef.current?.click()}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>
-                Block
-              </button>
-              <button className="image-btn" onClick={insertInlineImage}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                Inline
-              </button>
-              <button className="image-btn" onClick={insertBackgroundImage}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M2 15l5-5 4 4 5-5 6 6"/></svg>
-                Background
+            <div className="panel-header-actions">
+              <div className="image-toolbar">
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden-input" />
+                <button className="image-btn" onClick={() => fileInputRef.current?.click()}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>
+                  Block
+                </button>
+                <button className="image-btn" onClick={insertInlineImage}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                  Inline
+                </button>
+                <button className="image-btn" onClick={insertBackgroundImage}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M2 15l5-5 4 4 5-5 6 6"/></svg>
+                  Background
+                </button>
+              </div>
+              <button className="collapse-btn" onClick={() => setEditorCollapsed(!editorCollapsed)}>
+                {editorCollapsed ? '→' : '←'}
               </button>
             </div>
           </div>
           <textarea
+            ref={textareaRef}
             className="editor-textarea"
             value={markdown}
             onChange={(e) => setMarkdown(e.target.value)}
@@ -938,12 +1051,17 @@ function App() {
           />
         </div>
 
-        <div className="preview-panel">
+        <div className={`preview-panel ${previewCollapsed ? 'collapsed' : ''}`}>
           <div className="panel-header">
-            <span className="panel-title">Preview</span>
+            <div className="panel-header-left">
+              <button className="collapse-btn" onClick={() => setPreviewCollapsed(!previewCollapsed)}>
+                {previewCollapsed ? '←' : '→'}
+              </button>
+              <span className="panel-title">Preview</span>
+            </div>
             <span className="page-count">{pageCount} page{pageCount !== 1 ? 's' : ''}</span>
           </div>
-          <div className="preview-container">
+          <div className="preview-container" ref={previewContainerRef}>
             {customCSS[activeTheme] && <style>{customCSS[activeTheme]}</style>}
             
             <div 
@@ -1006,7 +1124,7 @@ function App() {
                     {finalHTML && (
                       <div className="page-content" dangerouslySetInnerHTML={{ __html: finalHTML }} />
                     )}
-                    <div className="page-number">{pageIndex + 1}</div>
+                    {pageIndex > 0 && <div className="page-number">{pageIndex + 1}</div>}
                   </div>
                 )
               })}

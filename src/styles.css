@@ -214,11 +214,27 @@ body {
 }
 
 .editor-panel {
-  width: 45%;
+  flex: 0 0 45%;
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   background: #080808;
+  transition: flex 0.3s ease;
+}
+
+.editor-panel.collapsed {
+  flex: 0 0 40px;
+  min-width: 40px;
+}
+
+.editor-panel.collapsed .editor-textarea,
+.editor-panel.collapsed .image-toolbar,
+.editor-panel.collapsed .panel-title {
+  display: none;
+}
+
+.preview-panel.collapsed .panel-title {
+  display: none;
 }
 
 .panel-header {
@@ -229,6 +245,35 @@ body {
   background: rgba(0, 0, 0, 0.3);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   height: 40px;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.collapse-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--brand-gray);
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+  font-family: monospace;
+  line-height: 1;
+}
+
+.collapse-btn:hover {
+  border-color: var(--brand-crimson);
+  color: var(--brand-crimson);
 }
 
 .panel-title {
@@ -265,10 +310,24 @@ body {
 }
 
 .preview-panel {
-  width: 55%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: #050505;
+  transition: flex 0.3s ease;
+}
+
+.preview-panel.collapsed {
+  flex: 0 0 40px;
+  min-width: 40px;
+}
+
+.preview-panel.collapsed .preview-container {
+  display: none;
+}
+
+.preview-panel.collapsed .page-count {
+  display: none;
 }
 
 .preview-container {
@@ -331,6 +390,11 @@ body {
 
 .pdf-page.background-page-container .page-content {
   padding: var(--page-padding);
+  position: relative;
+  z-index: 1;
+}
+
+.pdf-page.background-page-container .page-content * {
   position: relative;
   z-index: 1;
 }
