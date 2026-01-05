@@ -84,6 +84,28 @@ Regular text can be centered too.
 
 ---
 
+## Full-Page Background Images
+
+Use the "background" modifier on any image:
+
+\`\`\`
+![](image-url "background")
+![](image-url "background,opacity=0.5")
+\`\`\`
+
+Or use the :::background syntax:
+
+\`\`\`
+:::background https://... ;;;
+:::background https://... opacity=0.5 ;;;
+\`\`\`
+
+:::pagebreak:::
+
+![](https://images.unsplash.com/photo-1519681393784-d120267933ba?w=816&h=1056&fit=crop&q=80 "background")
+
+:::pagebreak:::
+
 ## Chart Example
 
 \`\`\`chart
@@ -195,16 +217,18 @@ function parseChartConfig(code) {
 }
 
 function parseImageModifiers(titleStr) {
-  const mods = { width: null, x: 0, y: 0, center: false, inline: false }
+  const mods = { width: null, x: 0, y: 0, center: false, inline: false, background: false, opacity: 1 }
   if (!titleStr) return mods
   
   titleStr.split(',').forEach(part => {
     const p = part.trim()
     if (p === 'center') mods.center = true
     else if (p === 'inline') mods.inline = true
+    else if (p === 'background' || p === 'bg') mods.background = true
     else if (p.startsWith('w=')) mods.width = parseInt(p.slice(2))
     else if (p.startsWith('x=')) mods.x = parseInt(p.slice(2))
     else if (p.startsWith('y=')) mods.y = parseInt(p.slice(2))
+    else if (p.startsWith('opacity=')) mods.opacity = parseFloat(p.slice(8))
   })
   return mods
 }
@@ -236,6 +260,12 @@ function App() {
     
     processed = processed.replace(/:::center\n([\s\S]*?)\n;;;/g, (match, content) => {
       return `<div class="centered-content">\n\n${content}\n\n</div>`
+    })
+    
+    processed = processed.replace(/:::background[\s\n]+(https?:\/\/[^\s\n;]+)(?:[\s\n]+opacity=([\d.]+))?[\s\n]*;;;/g, (match, url, opacity) => {
+      const cleanUrl = url.trim()
+      const opacityValue = opacity || '1'
+      return `<div class="background-page" data-bg-url="${cleanUrl}" data-bg-opacity="${opacityValue}" style="background-image: url('${cleanUrl}'); background-size: cover; background-position: center; opacity: ${opacityValue};"></div>`
     })
     
     return processed
@@ -562,13 +592,17 @@ function App() {
         const marginBottom = parseFloat(computedStyle.marginBottom) || 0
         const totalHeight = height + marginTop + marginBottom
 
-        if (child.classList.contains('background-page')) {
+        const bgPageElement = child.querySelector('.background-page')
+        if (child.classList.contains('background-page') || bgPageElement) {
           if (currentPage.length > 0) {
             pagesData.push({ elements: [...currentPage], isBackground: false })
             currentPage = []
             currentHeight = 0
           }
-          pagesData.push({ elements: [child.outerHTML], isBackground: true, bgUrl: child.style.backgroundImage })
+          const targetElement = bgPageElement || child
+          const bgUrl = targetElement.dataset.bgUrl || targetElement.style.backgroundImage.replace(/url\(['"]?([^'"]+)['"]?\)/, '$1')
+          const bgOpacity = targetElement.dataset.bgOpacity || '1'
+          pagesData.push({ elements: [], isBackground: true, bgUrl: `url('${bgUrl}')`, bgOpacity })
           i++
           continue
         }
@@ -685,7 +719,7 @@ function App() {
       reader.onload = (event) => {
         const id = `img-${Date.now()}`
         setImages(prev => ({ ...prev, [id]: event.target.result }))
-        setMarkdown(prev => prev + `\n\n:::background\n${id}\n;;;\n\n`)
+        setMarkdown(prev => prev + `\n\n![](${id} "background")\n\n`)
       }
       reader.readAsDataURL(file)
     }
@@ -762,6 +796,10 @@ function App() {
     const actualSrc = images[src] || src
     const mods = parseImageModifiers(title)
     
+    if (mods.background) {
+      return <div className="background-page" data-bg-url={actualSrc} data-bg-opacity={mods.opacity} style={{ backgroundImage: `url('${actualSrc}')`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: mods.opacity }} />
+    }
+    
     const style = {}
     if (mods.width) style.width = `${mods.width}px`
     if (mods.x || mods.y) style.transform = `translate(${mods.x}px, ${mods.y}px)`
@@ -795,12 +833,6 @@ function App() {
     
     if (text === ':::pagebreak:::' || text === ':::page:::') {
       return <div className="page-break-marker" data-pagebreak="true"></div>
-    }
-    
-    const bgMatch = text.match(/^:::background\s*([\s\S]*?);;;$/)
-    if (bgMatch) {
-      const imgSrc = images[bgMatch[1].trim()] || bgMatch[1].trim()
-      return <div className="background-page" style={{ backgroundImage: `url(${imgSrc})` }} />
     }
 
     const hasInlineImage = childArray.some(c => 
@@ -929,18 +961,55 @@ function App() {
             </div>
 
             <div className="pages-container" ref={pagesContainerRef}>
-              {pages.map((page, pageIndex) => (
-                <div 
-                  key={pageIndex} 
-                  className={`pdf-page mcx-preview theme-${activeTheme} ${page.isBackground ? 'background-page-container' : ''}`}
-                  style={page.isBackground ? { backgroundImage: page.bgUrl, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-                >
-                  {!page.isBackground && (
-                    <div className="page-content" dangerouslySetInnerHTML={{ __html: page.elements.join('') }} />
-                  )}
-                  <div className="page-number">{pageIndex + 1}</div>
-                </div>
-              ))}
+              {pages.map((page, pageIndex) => {
+                const contentHTML = page.elements.join('')
+                const tempDiv = document.createElement('div')
+                tempDiv.innerHTML = contentHTML
+                const bgPageInContent = tempDiv.querySelector('.background-page')
+                
+                let isBackgroundPage = page.isBackground
+                let bgUrl = page.bgUrl
+                let bgOpacity = page.bgOpacity || 1
+                
+                if (bgPageInContent && !isBackgroundPage) {
+                  isBackgroundPage = true
+                  bgUrl = bgPageInContent.dataset.bgUrl ? `url('${bgPageInContent.dataset.bgUrl}')` : bgPageInContent.style.backgroundImage
+                  bgOpacity = bgPageInContent.dataset.bgOpacity || 1
+                  bgPageInContent.remove()
+                }
+                
+                const finalHTML = tempDiv.innerHTML
+                
+                return (
+                  <div 
+                    key={pageIndex} 
+                    className={`pdf-page mcx-preview theme-${activeTheme} ${isBackgroundPage ? 'background-page-container' : ''}`}
+                  >
+                    {isBackgroundPage && (
+                      <div 
+                        className="page-background-layer"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          backgroundImage: bgUrl,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                          opacity: bgOpacity,
+                          zIndex: 0
+                        }}
+                      />
+                    )}
+                    {finalHTML && (
+                      <div className="page-content" dangerouslySetInnerHTML={{ __html: finalHTML }} />
+                    )}
+                    <div className="page-number">{pageIndex + 1}</div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

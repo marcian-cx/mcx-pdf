@@ -232,3 +232,10 @@
   text-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
 }
 
+.theme-neon.background-page-container .page-number {
+  background: rgba(10, 0, 21, 0.7);
+  padding: 0.25rem 0.5rem;
+  border: 1px solid rgba(0, 255, 255, 0.5);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
