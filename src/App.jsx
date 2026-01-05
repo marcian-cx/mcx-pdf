@@ -150,11 +150,20 @@ const defaultThemes = {
 }
 
 function ChartComponent({ config }) {
-  const { title, yLabel, equation, xRange, xMarkers, xEquationShift, yEquationShift } = config
+  const { title, yLabel, equation, xRange, yRange, xMarkers, xEquationShift, yEquationShift, xGraphRange } = config
   const [xMin, xMax] = xRange.split(',').map(v => parseFloat(v.trim()))
   
   const xShift = xEquationShift ? parseFloat(xEquationShift.split('=')[1]) : 0
   const yShift = yEquationShift ? parseFloat(yEquationShift.split('=')[1]) : 0
+  
+  let graphXMin, graphXMax
+  if (xGraphRange) {
+    [graphXMin, graphXMax] = xGraphRange.split(',').map(v => parseFloat(v.trim()))
+  } else {
+    graphXMin = xMin
+    graphXMax = xMax
+  }
+  
   const evaluateEquation = (x, eq) => {
     let expr = eq.replace(/\^2/g, '**2').replace(/\^3/g, '**3').replace(/x/g, `(${x})`)
     try { 
@@ -165,14 +174,23 @@ function ChartComponent({ config }) {
   }
   
   const points = []
-  const step = (xMax - xMin) / 100
-  let yMin = Infinity, yMax = -Infinity
+  const step = (graphXMax - graphXMin) / 100
+  let yMin, yMax
   
-  for (let x = xMin; x <= xMax; x += step) {
+  if (yRange) {
+    [yMin, yMax] = yRange.split(',').map(v => parseFloat(v.trim()))
+  } else {
+    yMin = Infinity
+    yMax = -Infinity
+  }
+  
+  for (let x = graphXMin; x <= graphXMax; x += step) {
     const y = evaluateEquation(x, equation)
     points.push({ x: x + xShift, y: y + yShift })
-    if (y < yMin) yMin = y
-    if (y > yMax) yMax = y
+    if (!yRange) {
+      if (y < yMin) yMin = y
+      if (y > yMax) yMax = y
+    }
   }
   
   const paddingLeft = 60, paddingRight = 40, paddingTop = 50, paddingBottom = 50
@@ -191,7 +209,9 @@ function ChartComponent({ config }) {
     return null
   }).filter(Boolean) : []
 
-  const fillPath = pathD + ` L ${width - paddingRight} ${height - paddingBottom} L ${paddingLeft} ${height - paddingBottom} Z`
+  const lastPoint = points[points.length - 1]
+  const firstPoint = points[0]
+  const fillPath = pathD + ` L ${scaleX(lastPoint.x)} ${height - paddingBottom} L ${scaleX(firstPoint.x)} ${height - paddingBottom} Z`
 
   return (
     <div className="chart-container">
