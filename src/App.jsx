@@ -150,8 +150,10 @@ const defaultThemes = {
 }
 
 function ChartComponent({ config }) {
-  const { title, yLabel, equation, xRange, yRange, xMarkers, xEquationShift, yEquationShift, xGraphRange } = config
+  const { title, yLabel, equation, equation2, equation3, xRange, yRange, xMarkers, xEquationShift, yEquationShift, xGraphRange, size } = config
   const [xMin, xMax] = xRange.split(',').map(v => parseFloat(v.trim()))
+  
+  const sizeMultiplier = size ? parseFloat(size) : 1
   
   const xShift = xEquationShift ? parseFloat(xEquationShift.split('=')[1]) : 0
   const yShift = yEquationShift ? parseFloat(yEquationShift.split('=')[1]) : 0
@@ -165,15 +167,22 @@ function ChartComponent({ config }) {
   }
   
   const evaluateEquation = (x, eq) => {
-    let expr = eq.replace(/\^2/g, '**2').replace(/\^3/g, '**3').replace(/x/g, `(${x})`)
+    let expr = eq.replace(/\^3/g, '**3').replace(/\^2/g, '**2')
+    expr = expr.replace(/(\([^)]+\))\*\*(\d+)/g, (match, base, exp) => `Math.pow(${base}, ${exp})`)
+    expr = expr.replace(/([a-zA-Z0-9]+)\*\*(\d+)/g, (match, base, exp) => `Math.pow(${base}, ${exp})`)
+    expr = expr.replace(/x/g, `(${x})`)
+    
     try { 
-      const func = new Function('sin', 'cos', 'tan', `"use strict"; return (${expr})`)
-      return func(Math.sin, Math.cos, Math.tan)
+      const func = new Function('sin', 'cos', 'tan', 'Math', `"use strict"; return (${expr})`)
+      const result = func(Math.sin, Math.cos, Math.tan, Math)
+      return result
     } 
-    catch { return 0 }
+    catch (e) { 
+      console.error('Equation evaluation error:', e, 'Expression:', expr)
+      return 0 
+    }
   }
   
-  const points = []
   const step = (graphXMax - graphXMin) / 100
   let yMin, yMax
   
@@ -184,6 +193,7 @@ function ChartComponent({ config }) {
     yMax = -Infinity
   }
   
+  const points = []
   for (let x = graphXMin; x <= graphXMax; x += step) {
     const y = evaluateEquation(x, equation)
     points.push({ x: x + xShift, y: y + yShift })
@@ -193,8 +203,36 @@ function ChartComponent({ config }) {
     }
   }
   
-  const paddingLeft = 60, paddingRight = 40, paddingTop = 50, paddingBottom = 50
-  const width = 500, height = 300
+  const points2 = []
+  if (equation2) {
+    for (let x = graphXMin; x <= graphXMax; x += step) {
+      const y = evaluateEquation(x, equation2)
+      points2.push({ x: x + xShift, y: y + yShift })
+      if (!yRange) {
+        if (y < yMin) yMin = y
+        if (y > yMax) yMax = y
+      }
+    }
+  }
+  
+  const points3 = []
+  if (equation3) {
+    for (let x = graphXMin; x <= graphXMax; x += step) {
+      const y = evaluateEquation(x, equation3)
+      points3.push({ x: x + xShift, y: y + yShift })
+      if (!yRange) {
+        if (y < yMin) yMin = y
+        if (y > yMax) yMax = y
+      }
+    }
+  }
+  
+  const paddingLeft = 50 * sizeMultiplier
+  const paddingRight = 20 * sizeMultiplier
+  const paddingTop = 30 * sizeMultiplier
+  const paddingBottom = 40 * sizeMultiplier
+  const width = 450 * sizeMultiplier
+  const height = 250 * sizeMultiplier
   const chartWidth = width - paddingLeft - paddingRight
   const chartHeight = height - paddingTop - paddingBottom
   
@@ -202,6 +240,8 @@ function ChartComponent({ config }) {
   const scaleY = (y) => height - paddingBottom - ((y - yMin) / (yMax - yMin)) * chartHeight
   
   const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaleY(p.y)}`).join(' ')
+  const pathD2 = points2.length > 0 ? points2.map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaleY(p.y)}`).join(' ') : ''
+  const pathD3 = points3.length > 0 ? points3.map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaleY(p.y)}`).join(' ') : ''
   
   const markers = xMarkers ? xMarkers.split(',').map(m => {
     const match = m.trim().match(/(.+)\s*@\s*(\d+\.?\d*)/)
@@ -213,30 +253,34 @@ function ChartComponent({ config }) {
   const firstPoint = points[0]
   const fillPath = pathD + ` L ${scaleX(lastPoint.x)} ${height - paddingBottom} L ${scaleX(firstPoint.x)} ${height - paddingBottom} Z`
 
+  const gradientId = `chartGradient-${title?.replace(/[^a-zA-Z0-9]/g, '-') || Math.random().toString(36).substr(2, 9)}`
+
   return (
     <div className="chart-container">
-      <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
+      <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="chart-svg">
         <defs>
-          <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" style={{ stopColor: 'var(--brand-crimson)', stopOpacity: 0.15 }} />
             <stop offset="100%" style={{ stopColor: 'var(--brand-crimson)', stopOpacity: 0.02 }} />
           </linearGradient>
         </defs>
-        <line x1={paddingLeft} y1={height - paddingBottom} x2={width - paddingRight} y2={height - paddingBottom} stroke="currentColor" strokeWidth="2" opacity="0.4" />
-        <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={height - paddingBottom} stroke="currentColor" strokeWidth="2" opacity="0.4" />
-        {yLabel && <text x={20} y={height / 2} transform={`rotate(-90, 20, ${height / 2})`} className="chart-label" style={{ fontSize: '14px', fontStyle: 'italic' }}>{yLabel}</text>}
+        <line x1={paddingLeft} y1={height - paddingBottom} x2={width - paddingRight} y2={height - paddingBottom} stroke="currentColor" strokeWidth={2 * sizeMultiplier} opacity="0.4" />
+        <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={height - paddingBottom} stroke="currentColor" strokeWidth={2 * sizeMultiplier} opacity="0.4" />
+        {yLabel && <text x={20 * sizeMultiplier} y={height / 2} transform={`rotate(-90, ${20 * sizeMultiplier}, ${height / 2})`} className="chart-label" style={{ fontSize: `${14 * sizeMultiplier}px`, fontStyle: 'italic' }}>{yLabel}</text>}
         {markers.map((marker, i) => {
           return (
             <g key={i}>
-              <line x1={scaleX(marker.x)} y1={paddingTop} x2={scaleX(marker.x)} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
-              <text x={scaleX(marker.x)} y={height - paddingBottom + 20} textAnchor="middle" className="chart-marker-label">{marker.label}</text>
+              <line x1={scaleX(marker.x)} y1={paddingTop} x2={scaleX(marker.x)} y2={height - paddingBottom} stroke="currentColor" strokeWidth={1 * sizeMultiplier} strokeDasharray={`${4 * sizeMultiplier},${4 * sizeMultiplier}`} opacity="0.3" />
+              <text x={scaleX(marker.x)} y={height - paddingBottom + (20 * sizeMultiplier)} textAnchor="middle" className="chart-marker-label" style={{ fontSize: `${12 * sizeMultiplier}px` }}>{marker.label}</text>
             </g>
           )
         })}
-        <path d={fillPath} fill="url(#chartGradient)" />
-        <path d={pathD} fill="none" stroke="var(--brand-crimson)" strokeWidth="2.5" />
+        <path d={fillPath} fill={`url(#${gradientId})`} />
+        <path d={pathD} fill="none" stroke="var(--brand-crimson)" strokeWidth={2.5 * sizeMultiplier} />
+        {pathD2 && <path d={pathD2} fill="none" stroke="#4A9EFF" strokeWidth={2.5 * sizeMultiplier} />}
+        {pathD3 && <path d={pathD3} fill="none" stroke="#FF9A4A" strokeWidth={2.5 * sizeMultiplier} />}
       </svg>
-      {title && <div className="chart-title">{title}</div>}
+      {title && <div className="chart-title" style={{ fontSize: `${0.75 * sizeMultiplier}rem`, marginTop: `${0.5 * sizeMultiplier}rem`, textAlign: 'left', paddingLeft: `${paddingLeft}px` }}>{title}</div>}
     </div>
   )
 }
@@ -683,8 +727,24 @@ function App() {
         }
 
         const remainingSpace = CONTENT_HEIGHT_PX - currentHeight
+        
+        const isChartContainer = child.classList.contains('chart-container') || child.classList.contains('chart-wrapper') || child.querySelector('.chart-container')
 
         if (totalHeight <= remainingSpace) {
+          currentPage.push(child.outerHTML)
+          currentHeight += totalHeight
+          i++
+        } else if (isChartContainer) {
+          if (currentPage.length > 0) {
+            pagesData.push({ 
+              elements: [...currentPage], 
+              isBackground: !!currentPageBgUrl, 
+              bgUrl: currentPageBgUrl, 
+              bgOpacity: currentPageBgOpacity 
+            })
+            currentPage = []
+            currentHeight = 0
+          }
           currentPage.push(child.outerHTML)
           currentHeight += totalHeight
           i++
@@ -999,7 +1059,7 @@ function App() {
     const lang = /language-(\w+)/.exec(className || '')?.[1] || ''
     const code = String(children).replace(/\n$/, '')
     
-    if (lang === 'chart') return <ChartComponent config={parseChartConfig(code)} />
+    if (lang === 'chart') return <div className="chart-wrapper"><ChartComponent config={parseChartConfig(code)} /></div>
     if (inline) return <code className={className} {...props}>{children}</code>
     return <pre><code className={className} {...props}>{children}</code></pre>
   }, [])
