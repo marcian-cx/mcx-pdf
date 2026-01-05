@@ -189,22 +189,31 @@ function ChartComponent({ config }) {
     return null
   }).filter(Boolean) : []
 
+  const fillPath = pathD + ` L ${width - paddingRight} ${height - paddingBottom} L ${paddingLeft} ${height - paddingBottom} Z`
+
   return (
     <div className="chart-container">
       <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
-        <line x1={paddingLeft} y1={height - paddingBottom} x2={width - paddingRight} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1.5" />
-        <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1.5" />
+        <defs>
+          <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style={{ stopColor: 'var(--brand-crimson)', stopOpacity: 0.15 }} />
+            <stop offset="100%" style={{ stopColor: 'var(--brand-crimson)', stopOpacity: 0.02 }} />
+          </linearGradient>
+        </defs>
+        <line x1={paddingLeft} y1={height - paddingBottom} x2={width - paddingRight} y2={height - paddingBottom} stroke="currentColor" strokeWidth="2" opacity="0.4" />
+        <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={height - paddingBottom} stroke="currentColor" strokeWidth="2" opacity="0.4" />
         {yLabel && <text x={20} y={height / 2} transform={`rotate(-90, 20, ${height / 2})`} className="chart-label" style={{ fontSize: '14px', fontStyle: 'italic' }}>{yLabel}</text>}
-        <path d={pathD} fill="none" stroke="currentColor" strokeWidth="2" />
         {markers.map((marker, i) => {
           const y = evaluateEquation(marker.x, equation)
           return (
             <g key={i}>
-              <line x1={scaleX(marker.x)} y1={paddingTop} x2={scaleX(marker.x)} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1" strokeDasharray="3,3" />
+              <line x1={scaleX(marker.x)} y1={paddingTop} x2={scaleX(marker.x)} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
               <text x={scaleX(marker.x)} y={height - paddingBottom + 20} textAnchor="middle" className="chart-marker-label">{marker.label}</text>
             </g>
           )
         })}
+        <path d={fillPath} fill="url(#chartGradient)" />
+        <path d={pathD} fill="none" stroke="var(--brand-crimson)" strokeWidth="2.5" />
       </svg>
       {title && <div className="chart-title">{title}</div>}
     </div>
