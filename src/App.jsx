@@ -729,12 +729,14 @@ function App() {
         const remainingSpace = CONTENT_HEIGHT_PX - currentHeight
         
         const isChartContainer = child.classList.contains('chart-container') || child.classList.contains('chart-wrapper') || child.querySelector('.chart-container')
+        const tagName = child.tagName.toLowerCase()
+        const isAtomicElement = isChartContainer || tagName === 'p' || tagName === 'h1' || tagName === 'h2' || tagName === 'h3' || tagName === 'h4' || tagName === 'h5' || tagName === 'h6' || tagName === 'blockquote'
 
         if (totalHeight <= remainingSpace) {
           currentPage.push(child.outerHTML)
           currentHeight += totalHeight
           i++
-        } else if (isChartContainer) {
+        } else if (isAtomicElement) {
           if (currentPage.length > 0) {
             pagesData.push({ 
               elements: [...currentPage], 
