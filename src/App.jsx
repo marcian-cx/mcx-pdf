@@ -155,7 +155,10 @@ function ChartComponent({ config }) {
   
   const evaluateEquation = (x, eq) => {
     let expr = eq.replace(/\^2/g, '**2').replace(/\^3/g, '**3').replace(/x/g, `(${x})`)
-    try { return Function(`"use strict"; return (${expr})`)() } 
+    try { 
+      const func = new Function('sin', 'cos', 'tan', `"use strict"; return (${expr})`)
+      return func(Math.sin, Math.cos, Math.tan)
+    } 
     catch { return 0 }
   }
   
@@ -170,12 +173,13 @@ function ChartComponent({ config }) {
     if (y > yMax) yMax = y
   }
   
-  const padding = 50, width = 500, height = 280
-  const chartWidth = width - padding * 2
-  const chartHeight = height - padding * 2
+  const paddingLeft = 60, paddingRight = 40, paddingTop = 50, paddingBottom = 50
+  const width = 500, height = 300
+  const chartWidth = width - paddingLeft - paddingRight
+  const chartHeight = height - paddingTop - paddingBottom
   
-  const scaleX = (x) => padding + ((x - xMin) / (xMax - xMin)) * chartWidth
-  const scaleY = (y) => height - padding - ((y - yMin) / (yMax - yMin)) * chartHeight
+  const scaleX = (x) => paddingLeft + ((x - xMin) / (xMax - xMin)) * chartWidth
+  const scaleY = (y) => height - paddingBottom - ((y - yMin) / (yMax - yMin)) * chartHeight
   
   const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaleY(p.y)}`).join(' ')
   
@@ -188,16 +192,16 @@ function ChartComponent({ config }) {
   return (
     <div className="chart-container">
       <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="currentColor" strokeWidth="1.5" />
-        <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="currentColor" strokeWidth="1.5" />
-        {yLabel && <text x={15} y={height / 2} transform={`rotate(-90, 15, ${height / 2})`} className="chart-label">{yLabel}</text>}
-        <path d={pathD} fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <line x1={paddingLeft} y1={height - paddingBottom} x2={width - paddingRight} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1.5" />
+        <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1.5" />
+        {yLabel && <text x={20} y={height / 2} transform={`rotate(-90, 20, ${height / 2})`} className="chart-label" style={{ fontSize: '14px', fontStyle: 'italic' }}>{yLabel}</text>}
+        <path d={pathD} fill="none" stroke="currentColor" strokeWidth="2" />
         {markers.map((marker, i) => {
           const y = evaluateEquation(marker.x, equation)
           return (
             <g key={i}>
-              <line x1={scaleX(marker.x)} y1={scaleY(y)} x2={scaleX(marker.x)} y2={height - padding} stroke="currentColor" strokeWidth="1" strokeDasharray="3,3" />
-              <text x={scaleX(marker.x)} y={height - padding + 18} textAnchor="middle" className="chart-marker-label">{marker.label}</text>
+              <line x1={scaleX(marker.x)} y1={paddingTop} x2={scaleX(marker.x)} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1" strokeDasharray="3,3" />
+              <text x={scaleX(marker.x)} y={height - paddingBottom + 20} textAnchor="middle" className="chart-marker-label">{marker.label}</text>
             </g>
           )
         })}

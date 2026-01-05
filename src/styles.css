@@ -732,11 +732,8 @@ body {
 
 .chart-container {
   margin: 1rem 0;
-  padding: 1rem;
+  padding: 0;
 }
-
-.theme-dark .chart-container { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); }
-.theme-light .chart-container { background: rgba(0, 0, 0, 0.02); border: 1px solid rgba(0, 0, 0, 0.08); }
 
 .chart-svg {
   width: 100%;
@@ -751,29 +748,29 @@ body {
 
 .chart-label {
   font-family: 'Roboto Condensed', sans-serif;
-  font-size: 11px;
+  font-size: 14px;
   font-style: italic;
 }
 
-.theme-dark .chart-label { fill: var(--brand-silver); }
-.theme-light .chart-label { fill: #666; }
+.theme-dark .chart-label { fill: var(--brand-white); }
+.theme-light .chart-label { fill: #333; }
 
 .chart-marker-label {
   font-family: 'Roboto Condensed', sans-serif;
-  font-size: 10px;
+  font-size: 12px;
 }
 
-.theme-dark .chart-marker-label { fill: var(--brand-silver); }
+.theme-dark .chart-marker-label { fill: var(--brand-white); }
 .theme-light .chart-marker-label { fill: #666; }
 
 .chart-title {
   text-align: center;
   font-family: 'Roboto Condensed', sans-serif;
-  font-size: 0.6875rem;
-  margin-top: 0.625rem;
+  font-size: 0.75rem;
+  margin-top: 1rem;
 }
 
-.theme-dark .chart-title { color: var(--brand-gray); }
+.theme-dark .chart-title { color: var(--brand-silver); }
 .theme-light .chart-title { color: #666; }
 
 .image-toolbar {
