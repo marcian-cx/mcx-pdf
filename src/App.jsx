@@ -150,9 +150,11 @@ const defaultThemes = {
 }
 
 function ChartComponent({ config }) {
-  const { title, yLabel, equation, xRange, xMarkers } = config
+  const { title, yLabel, equation, xRange, xMarkers, xEquationShift, yEquationShift } = config
   const [xMin, xMax] = xRange.split(',').map(v => parseFloat(v.trim()))
   
+  const xShift = xEquationShift ? parseFloat(xEquationShift.split('=')[1]) : 0
+  const yShift = yEquationShift ? parseFloat(yEquationShift.split('=')[1]) : 0
   const evaluateEquation = (x, eq) => {
     let expr = eq.replace(/\^2/g, '**2').replace(/\^3/g, '**3').replace(/x/g, `(${x})`)
     try { 
@@ -168,7 +170,7 @@ function ChartComponent({ config }) {
   
   for (let x = xMin; x <= xMax; x += step) {
     const y = evaluateEquation(x, equation)
-    points.push({ x, y })
+    points.push({ x: x + xShift, y: y + yShift })
     if (y < yMin) yMin = y
     if (y > yMax) yMax = y
   }
@@ -204,7 +206,6 @@ function ChartComponent({ config }) {
         <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={height - paddingBottom} stroke="currentColor" strokeWidth="2" opacity="0.4" />
         {yLabel && <text x={20} y={height / 2} transform={`rotate(-90, 20, ${height / 2})`} className="chart-label" style={{ fontSize: '14px', fontStyle: 'italic' }}>{yLabel}</text>}
         {markers.map((marker, i) => {
-          const y = evaluateEquation(marker.x, equation)
           return (
             <g key={i}>
               <line x1={scaleX(marker.x)} y1={paddingTop} x2={scaleX(marker.x)} y2={height - paddingBottom} stroke="currentColor" strokeWidth="1" strokeDasharray="4,4" opacity="0.3" />
