@@ -55,3 +55,4 @@ The `documents/` folder is gitignored by default.
 - Documents auto-save every 30 seconds when named
 - "untitled.md" won't auto-save (create a new named document first)
 
+

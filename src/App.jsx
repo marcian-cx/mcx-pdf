@@ -123,7 +123,8 @@ More text to demonstrate page breaks working correctly across multiple pages. Th
 
 const defaultThemes = {
   dark: { name: 'MCX Dark', id: 'dark', builtin: true },
-  light: { name: 'MCX Light', id: 'light', builtin: true }
+  light: { name: 'MCX Light', id: 'light', builtin: true },
+  neon: { name: 'Neon Nights', id: 'neon', builtin: true }
 }
 
 function ChartComponent({ config }) {
@@ -243,6 +244,21 @@ function App() {
   useEffect(() => {
     fetchFilesList()
   }, [])
+
+  useEffect(() => {
+    const loadBuiltinThemeCSS = async () => {
+      if (themes[activeTheme]?.builtin && activeTheme !== 'dark') {
+        try {
+          const response = await fetch(`/mcx-${activeTheme}.css`)
+          const css = await response.text()
+          setCustomCSS(prev => ({ ...prev, [activeTheme]: css }))
+        } catch (error) {
+          console.error(`Failed to load ${activeTheme} theme CSS:`, error)
+        }
+      }
+    }
+    loadBuiltinThemeCSS()
+  }, [activeTheme, themes])
 
   const fetchFilesList = useCallback(async () => {
     try {
